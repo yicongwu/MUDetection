@@ -12,7 +12,7 @@
 #include <stdlib.h>
 using namespace cv;
 
-const Scalar RED = Scalar(0,0,255);
+const Scalar YELLOW = Scalar(0,255,255);
 const Scalar GREEN = Scalar(0,255,0);
 
 @interface ViewController()
@@ -47,8 +47,8 @@ const Scalar GREEN = Scalar(0,255,0);
     videoCamera.defaultFPS = 30;
     videoCamera.grayscaleMode = NO;
     videoCamera.delegate = self;
-    videoCamera.rotateVideo=YES;
-
+    videoCamera.rotateVideo = YES;
+    videoCamera.recordVideo = YES;
     [videoCamera start];
 }
 
@@ -91,8 +91,9 @@ const Scalar GREEN = Scalar(0,255,0);
     for( int i = 0; i < faces.size(); i++ )
     {
         cv::Point center( faces[i].x + faces[i].width*0.5, faces[i].y + faces[i].height*0.5 );
-        rectangle(display_im, faces[i], RED);
-        
+        rectangle(display_im, faces[i], YELLOW);
+        faces[i].y = int(faces[i].y+faces[i].width*0.5);
+        faces[i].height = int(faces[i].height*0.5);
         Mat faceROI = frame_gray( faces[i] );
         /*
         vector<cv::Rect> eyes;
