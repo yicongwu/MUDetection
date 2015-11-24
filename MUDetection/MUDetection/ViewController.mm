@@ -48,7 +48,7 @@ const Scalar GREEN = Scalar(0,255,0);
     videoCamera.grayscaleMode = NO;
     videoCamera.delegate = self;
     videoCamera.rotateVideo = YES;
-    videoCamera.recordVideo = YES;
+    //videoCamera.recordVideo = YES;
     [videoCamera start];
 }
 
