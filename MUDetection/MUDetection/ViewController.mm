@@ -12,12 +12,8 @@
 #include <stdlib.h>
 using namespace cv;
 
-const Scalar RED = Scalar(255,0,0);
-const Scalar PINK = Scalar(255,130,230);
-const Scalar BLUE = Scalar(0,0,255);
-const Scalar LIGHTBLUE = Scalar(160,255,255);
+const Scalar RED = Scalar(0,0,255);
 const Scalar GREEN = Scalar(0,255,0);
-const Scalar WHITE = Scalar(255,255,255);
 
 @interface ViewController()
 {
@@ -44,7 +40,6 @@ const Scalar WHITE = Scalar(255,255,255);
     liveView_ = [[UIImageView alloc] initWithFrame:CGRectMake(0.0, view_offset, view_width, view_height)];
     [self.view addSubview:liveView_]; // Important: add liveView_ as a subview
     liveView_.hidden=false;
-    
     videoCamera = [[CvVideoCamera alloc] initWithParentView:liveView_];
     videoCamera.defaultAVCaptureDevicePosition = AVCaptureDevicePositionFront;
     videoCamera.defaultAVCaptureSessionPreset = AVCaptureSessionPreset640x480;
@@ -52,6 +47,8 @@ const Scalar WHITE = Scalar(255,255,255);
     videoCamera.defaultFPS = 30;
     videoCamera.grayscaleMode = NO;
     videoCamera.delegate = self;
+    videoCamera.rotateVideo=YES;
+
     [videoCamera start];
 }
 
@@ -59,35 +56,37 @@ const Scalar WHITE = Scalar(255,255,255);
 
 - (void)processImage:(cv::Mat &)image{
     
-    
-    
-    /*
     // You can apply your OpenCV code HERE!!!!!
     // If you want, you can ignore the rest of the code base here, and simply place
     // your OpenCV code here to process images.
     cv::CascadeClassifier face_cascade; // Cascade classifier for detecting the face
-    cv::CascadeClassifier eye_cascade;
+    //cv::CascadeClassifier eye_cascade;
+    cv::CascadeClassifier mouth_cascade;
     
     NSString* cascadePath1 = [[NSBundle mainBundle]
                               pathForResource:@"haarcascade_frontalface_alt" ofType:@"xml"];
     face_cascade.load([cascadePath1 UTF8String]);
-    
+    /*
     NSString* cascadePath2 = [[NSBundle mainBundle]
                               pathForResource:@"haarcascade_eye" ofType:@"xml"];
     eye_cascade.load([cascadePath2 UTF8String]);
-    
-    
+    */
+    NSString* cascadePath3 = [[NSBundle mainBundle]
+                              pathForResource:@"haarcascade_mcs_mouth" ofType:@"xml"];
+    mouth_cascade.load([cascadePath3 UTF8String]);
+
+
     cv::Mat cvImage=image;
-    cvImage= cvImage.t();
-    cv::Mat gray; cv::cvtColor(cvImage.clone(), gray, CV_RGBA2GRAY); // Convert to grayscale
-    cv::Mat im = gray.clone();
-    cv::Mat display_im=cvImage.clone();
+    cv::Mat gray;
+    cv::cvtColor(cvImage, gray, CV_RGBA2GRAY); // Convert to grayscale
+    cv::Mat im = gray;
+    cv::Mat display_im=cvImage;
     
     vector<cv::Rect> faces;
-    Mat frame_gray=im.clone();
-    equalizeHist( frame_gray, frame_gray );
+    Mat frame_gray=im;
+    //equalizeHist( frame_gray, frame_gray );
     std::cout<<frame_gray.cols<<" "<<frame_gray.rows<<std::endl;
-    face_cascade.detectMultiScale( frame_gray, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE,cv::Size(30, 100) );
+    face_cascade.detectMultiScale( frame_gray, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE,cv::Size(50, 100) );
     std::cout << "Detected " << faces.size() << " faces!!!! " << std::endl;
     for( int i = 0; i < faces.size(); i++ )
     {
@@ -95,8 +94,8 @@ const Scalar WHITE = Scalar(255,255,255);
         rectangle(display_im, faces[i], RED);
         
         Mat faceROI = frame_gray( faces[i] );
+        /*
         vector<cv::Rect> eyes;
-        
         eye_cascade.detectMultiScale( faceROI, eyes, 1.1, 2, 0 |CV_HAAR_SCALE_IMAGE, cv::Size(5, 20) );
         std::cout << "Detected " << eyes.size() << " eyes!!!! " << std::endl;
         for( int j = 0; j < eyes.size(); j++ )
@@ -105,12 +104,28 @@ const Scalar WHITE = Scalar(255,255,255);
             int radius = cvRound( (eyes[j].width + eyes[i].height)*0.25 );
             circle( display_im, center, radius, GREEN, 4, 8, 0 );
         }
+        */
+        vector<cv::Rect> mouths;
+        mouth_cascade.detectMultiScale( faceROI, mouths, 1.1, 2, 0 |CV_HAAR_SCALE_IMAGE, cv::Size(30, 50) );
+        std::cout << "Detected " << mouths.size() << " mouths!!!! " << std::endl;
+        if  (mouths.size()>0)
+        {
+            cv::Point p1( faces[i].x + mouths[0].x , faces[i].y + mouths[0].y );
+            cv::Point p2( faces[i].x + mouths[0].x + mouths[0].width, faces[i].y + mouths[0].y + mouths[0].height);
+            
+            /*
+            int radius = cvRound( (mouths[j].width + mouths[i].height)*0.25 );
+            circle( display_im, center, radius, GREEN, 4, 8, 0 );
+            */
+            rectangle(display_im, p1,p2, GREEN);
+        }
+
     }
-    image =display_im.t();
-    */
-    // Special part to ensure the image is rotated properly when the image is converted back
-    //  [takephotoButton_ setHidden:true]; [goliveButton_ setHidden:false]; // Switch visibility of buttons
     
+    image =display_im;
+
+
+    //  [takephotoButton_ setHidden:true]; [goliveButton_ setHidden:false]; // Switch visibility of buttons
 }
 
 //===============================================================================================
