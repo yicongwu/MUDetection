@@ -13,6 +13,7 @@
 using namespace cv;
 
 const Scalar YELLOW = Scalar(0,255,255);
+const Scalar RED = Scalar(0,0,255);
 const Scalar GREEN = Scalar(0,255,0);
 
 @interface ViewController()
@@ -88,8 +89,23 @@ const Scalar GREEN = Scalar(0,255,0);
     std::cout<<frame_gray.cols<<" "<<frame_gray.rows<<std::endl;
     face_cascade.detectMultiScale( frame_gray, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE,cv::Size(50, 100) );
     std::cout << "Detected " << faces.size() << " faces!!!! " << std::endl;
+    cv::Rect mainFace;
+    int max=0;
     for( int i = 0; i < faces.size(); i++ )
     {
+        if (i==0)
+        {
+            mainFace=faces[i];
+            max=mainFace.height * mainFace.width;
+        }
+        else
+        {
+            if (max<(faces[i].height*faces[i].width))
+            {
+                mainFace=faces[i];
+                max=mainFace.height * mainFace.width;
+            }
+        }
         cv::Point center( faces[i].x + faces[i].width*0.5, faces[i].y + faces[i].height*0.5 );
         rectangle(display_im, faces[i], YELLOW);
         faces[i].y = int(faces[i].y+faces[i].width*0.5);
@@ -122,6 +138,7 @@ const Scalar GREEN = Scalar(0,255,0);
         }
 
     }
+    rectangle(display_im, mainFace, RED);
     
     image =display_im;
 
