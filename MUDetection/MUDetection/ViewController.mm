@@ -176,7 +176,6 @@ const Scalar GREEN = Scalar(0,255,0);
  //   image=RGface;
     
 
-
     //  [takephotoButton_ setHidden:true]; [goliveButton_ setHidden:false]; // Switch visibility of buttons
 }
 
