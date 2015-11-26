@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0206C1A41C063AE80012D7E1 /* RGuser.JPG in Resources */ = {isa = PBXBuildFile; fileRef = 0206C1A31C063AE80012D7E1 /* RGuser.JPG */; };
 		07392E681C03EE660005B6A4 /* haarcascade_mcs_mouth.xml in Resources */ = {isa = PBXBuildFile; fileRef = 07392E671C03EE660005B6A4 /* haarcascade_mcs_mouth.xml */; };
 		07A555FC1BFFB97000D5AB9C /* haarcascade_frontalface_alt.xml in Resources */ = {isa = PBXBuildFile; fileRef = 07A555FB1BFFB97000D5AB9C /* haarcascade_frontalface_alt.xml */; };
 		07A555FE1BFFB97800D5AB9C /* haarcascade_eye.xml in Resources */ = {isa = PBXBuildFile; fileRef = 07A555FD1BFFB97800D5AB9C /* haarcascade_eye.xml */; };
@@ -47,6 +48,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0206C1A31C063AE80012D7E1 /* RGuser.JPG */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = RGuser.JPG; sourceTree = SOURCE_ROOT; };
 		07392E671C03EE660005B6A4 /* haarcascade_mcs_mouth.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = haarcascade_mcs_mouth.xml; sourceTree = SOURCE_ROOT; };
 		07A555FB1BFFB97000D5AB9C /* haarcascade_frontalface_alt.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = haarcascade_frontalface_alt.xml; sourceTree = SOURCE_ROOT; };
 		07A555FD1BFFB97800D5AB9C /* haarcascade_eye.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = haarcascade_eye.xml; sourceTree = SOURCE_ROOT; };
@@ -157,6 +159,7 @@
 		07F936DA1BFFA50C0087DCA6 /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
+				0206C1A31C063AE80012D7E1 /* RGuser.JPG */,
 				07392E671C03EE660005B6A4 /* haarcascade_mcs_mouth.xml */,
 				07A555FB1BFFB97000D5AB9C /* haarcascade_frontalface_alt.xml */,
 				07A555FF1BFFB97E00D5AB9C /* haarcascade_frontalface_alt2.xml */,
@@ -294,6 +297,7 @@
 				07A555FC1BFFB97000D5AB9C /* haarcascade_frontalface_alt.xml in Resources */,
 				07A555FE1BFFB97800D5AB9C /* haarcascade_eye.xml in Resources */,
 				07F936E51BFFA50C0087DCA6 /* Main.storyboard in Resources */,
+				0206C1A41C063AE80012D7E1 /* RGuser.JPG in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
