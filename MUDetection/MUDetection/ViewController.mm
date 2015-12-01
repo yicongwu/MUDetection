@@ -15,12 +15,16 @@ using namespace cv;
 const Scalar YELLOW = Scalar(0,255,255);
 const Scalar RED = Scalar(0,0,255);
 const Scalar GREEN = Scalar(0,255,0);
+const Scalar BLUE = Scalar(255,0,0);
 
 @interface ViewController()
 {
     UIImageView *liveView_; // Live output from the camera
     CvVideoCamera *videoCamera;
     cv::Mat RGface;
+    Ptr<FaceRecognizer> model;
+    vector<Mat> images;
+    vector<int> labels;
 }
 
 @end
@@ -43,15 +47,15 @@ const Scalar GREEN = Scalar(0,255,0);
     
     cv::Mat RGimage,gray;
     UIImageToMat(imgFromUrl2,RGimage);
-    RGimage=RGimage.t();
+
 
     cv::cvtColor(RGimage, gray, CV_BGR2GRAY); // Convert to grayscale
     cv::Mat im = gray;
     cv::Mat display_im=RGimage;
     
     vector<cv::Rect> faces;
-    //equalizeHist( frame_gray, frame_gray );
-    std::cout<<im.cols<<" "<<im.rows<<std::endl;
+    equalizeHist( im, im );
+    //std::cout<<im.cols<<" "<<im.rows<<std::endl;
     face_cascade.detectMultiScale( im, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE,cv::Size(50, 100) );
     std::cout << "Detected " << faces.size() << " faces!!!! " << std::endl;
     for( int i = 0; i < faces.size(); i++ )
@@ -60,14 +64,17 @@ const Scalar GREEN = Scalar(0,255,0);
     }
     
     std::cout<<display_im.cols<<display_im.rows;
+    // get sample face region
+    Mat faceROI=gray(faces[0]);
+    RGface=faceROI;
     
-//display_im=display_im.t();
-/*
-    Mat faceROI=RGimage(faces[0]);
-    RGface=faceROI;                    ///////////////
-*/
-    //RGface=RGimage2;
+    images.push_back(RGface);
+    labels.push_back(0);
     
+    model = createLBPHFaceRecognizer();
+    model->set("threshold", 70.0);
+    model->train(images,labels);
+   
     
     // 1. Setup the your OpenCV view, so it takes up the entire App screen......
     int view_width = self.view.frame.size.width;
@@ -77,8 +84,6 @@ const Scalar GREEN = Scalar(0,255,0);
     [self.view addSubview:liveView_]; // Important: add liveView_ as a subview
     liveView_.hidden=false;
     
-    //liveView_.image=imgFromUrl2;
-  //  liveView_.image=MatToUIImage(display_im);
     
         
         
@@ -98,11 +103,6 @@ const Scalar GREEN = Scalar(0,255,0);
 //===============================================================================================
 
 - (void)processImage:(cv::Mat &)image{
- 
-    
-    
-    //image=RGface;
-    
     
     // You can apply your OpenCV code HERE!!!!!
     // If you want, you can ignore the rest of the code base here, and simply place
@@ -127,18 +127,31 @@ const Scalar GREEN = Scalar(0,255,0);
     
     vector<cv::Rect> faces;
     Mat frame_gray=im;
-    //equalizeHist( frame_gray, frame_gray );
-    std::cout<<frame_gray.cols<<" "<<frame_gray.rows<<std::endl;
+    equalizeHist( frame_gray, frame_gray );
+    //std::cout<<frame_gray.cols<<" "<<frame_gray.rows<<std::endl;
     face_cascade.detectMultiScale( frame_gray, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE,cv::Size(50, 100) );
-    std::cout << "Detected " << faces.size() << " faces!!!! " << std::endl;
+    //std::cout << "Detected " << faces.size() << " faces!!!! " << std::endl;
+    
     cv::Rect mainFace;
     int max=0;
+    int mainlabel=-1;
+    Mat faceROI0;
     for( int i = 0; i < faces.size(); i++ )
     {
+        
+        faceROI0 = frame_gray( faces[i] );
+        //recognization
+        int predicted_label = -1;
+        double predicted_confidence = 1000.0;
+        // Get the prediction and associated confidence from the model
+        model->predict(faceROI0, predicted_label, predicted_confidence);
+        std::cout<<predicted_label<<std::endl;
+        std::cout<<predicted_confidence<<std::endl;
         if (i==0)
         {
             mainFace=faces[i];
             max=mainFace.height * mainFace.width;
+            mainlabel=predicted_label;
         }
         else
         {
@@ -146,18 +159,27 @@ const Scalar GREEN = Scalar(0,255,0);
             {
                 mainFace=faces[i];
                 max=mainFace.height * mainFace.width;
+                mainlabel=predicted_label;
             }
         }
         cv::Point center( faces[i].x + faces[i].width*0.5, faces[i].y + faces[i].height*0.5 );
-        rectangle(display_im, faces[i], YELLOW);
-        std::cout<<faces[0].height<<faces[0].height;   ///////////////////////////////////////////////////
-        faces[i].y = int(faces[i].y+faces[i].width*0.5);
-        faces[i].height = int(faces[i].height*0.5);
+        if (predicted_label==-1)
+        {
+            rectangle(display_im, faces[i], YELLOW);
+        }
+        else
+        {
+            rectangle(display_im, faces[i], BLUE);
+        }
+        
+        //std::cout<<faces[0].height<<faces[0].height;   ///////////////////////////////////////////////////
+        faces[i].y = int(faces[i].y+faces[i].width*0.67);
+        faces[i].height = int(faces[i].height*0.33);
         Mat faceROI = frame_gray( faces[i] );
 
         vector<cv::Rect> mouths;
         mouth_cascade.detectMultiScale( faceROI, mouths, 1.1, 2, 0 |CV_HAAR_SCALE_IMAGE, cv::Size(30, 50) );
-        std::cout << "Detected " << mouths.size() << " mouths!!!! " << std::endl;
+        //std::cout << "Detected " << mouths.size() << " mouths!!!! " << std::endl;
         if  (mouths.size()>0)
         {
             cv::Point p1( faces[i].x + mouths[0].x , faces[i].y + mouths[0].y );
@@ -170,14 +192,17 @@ const Scalar GREEN = Scalar(0,255,0);
         }
 
     }
-    rectangle(display_im, mainFace, RED);
+    if (mainlabel==-1)
+    {
+        rectangle(display_im, mainFace, RED);
+    }
     
     image =display_im;
- //   image=RGface;
-    
+   // image=RGface;
 
     //  [takephotoButton_ setHidden:true]; [goliveButton_ setHidden:false]; // Switch visibility of buttons
 }
+
 
 //===============================================================================================
 // Standard memory warning component added by Xcode

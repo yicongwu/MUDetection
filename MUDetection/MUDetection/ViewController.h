@@ -10,6 +10,7 @@
 
 #ifdef __cplusplus
 #import <opencv2/opencv.hpp>
+#include "opencv2/contrib/contrib.hpp"
 #import "opencv2/highgui/ios.h"
 #endif
 
