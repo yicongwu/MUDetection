@@ -47,7 +47,7 @@ const Scalar BLUE = Scalar(255,0,0);
     
     cv::Mat RGimage,gray;
     UIImageToMat(imgFromUrl2,RGimage);
-
+    cv::Rect faceRec;
 
     cv::cvtColor(RGimage, gray, CV_BGR2GRAY); // Convert to grayscale
     cv::Mat im = gray;
@@ -56,7 +56,7 @@ const Scalar BLUE = Scalar(255,0,0);
     vector<cv::Rect> faces;
     equalizeHist( im, im );
     //std::cout<<im.cols<<" "<<im.rows<<std::endl;
-    face_cascade.detectMultiScale( im, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE,cv::Size(50, 100) );
+    /*face_cascade.detectMultiScale( im, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE,cv::Size(50, 100) );
     std::cout << "Detected " << faces.size() << " faces!!!! " << std::endl;
     for( int i = 0; i < faces.size(); i++ )
     {
@@ -64,8 +64,24 @@ const Scalar BLUE = Scalar(255,0,0);
     }
     
     std::cout<<display_im.cols<<display_im.rows;
+    */
+    NSDictionary *detectorOptions = @{ CIDetectorAccuracy : CIDetectorAccuracyLow };
+    CIDetector *faceDetector = [CIDetector detectorOfType:CIDetectorTypeFace context:nil options:detectorOptions];
+    
+    // 5. Apply the image through the face detector
+    NSArray *features = [faceDetector featuresInImage:[CIImage imageWithCGImage: [imgFromUrl2 CGImage]]];
+    for(CIFaceFeature* faceFeature in features)
+    {
+        CGRect rec=faceFeature.bounds;
+        faceRec.x=rec.origin.x;
+        faceRec.y=640-rec.origin.y-rec.size.height;
+        faceRec.width=rec.size.width;
+        faceRec.height=rec.size.height;
+    }
+    
     // get sample face region
-    Mat faceROI=gray(faces[0]);
+    //Mat faceROI=gray(faces[0]);
+    Mat faceROI=gray(faceRec);
     RGface=faceROI;
     
     images.push_back(RGface);
@@ -124,22 +140,38 @@ const Scalar BLUE = Scalar(255,0,0);
     cv::cvtColor(cvImage, gray, CV_RGBA2GRAY); // Convert to grayscale
     cv::Mat im = gray;
     cv::Mat display_im=cvImage;
+    UIImage *img;
+    img=MatToUIImage(image);
     
+    /*
     vector<cv::Rect> faces;
     Mat frame_gray=im;
     equalizeHist( frame_gray, frame_gray );
     //std::cout<<frame_gray.cols<<" "<<frame_gray.rows<<std::endl;
     face_cascade.detectMultiScale( frame_gray, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE,cv::Size(50, 100) );
     //std::cout << "Detected " << faces.size() << " faces!!!! " << std::endl;
+    */
+    
+    NSDictionary *detectorOptions = @{ CIDetectorAccuracy : CIDetectorAccuracyLow };
+    CIDetector *faceDetector = [CIDetector detectorOfType:CIDetectorTypeFace context:nil options:detectorOptions];
+    
+    // 5. Apply the image through the face detector
+    NSArray *features = [faceDetector featuresInImage:[CIImage imageWithCGImage: [img CGImage]]];
     
     cv::Rect mainFace;
+    cv::Rect faceRec;
     int max=0;
     int mainlabel=-1;
     Mat faceROI0;
-    for( int i = 0; i < faces.size(); i++ )
+    for(CIFaceFeature* faceFeature in features)
     {
-        
-        faceROI0 = frame_gray( faces[i] );
+        CGRect rec=faceFeature.bounds;
+        faceRec.x=rec.origin.x;
+        faceRec.y=640-rec.origin.y-rec.size.height;
+        //std::cout<<faceRec.x<<" "<<faceRec.y<<std::endl;
+        faceRec.width=rec.size.width;
+        faceRec.height=rec.size.height;
+        faceROI0 = im( faceRec );
         //recognization
         int predicted_label = -1;
         double predicted_confidence = 1000.0;
@@ -147,31 +179,32 @@ const Scalar BLUE = Scalar(255,0,0);
         model->predict(faceROI0, predicted_label, predicted_confidence);
         std::cout<<predicted_label<<std::endl;
         std::cout<<predicted_confidence<<std::endl;
-        if (i==0)
+        if (max==0)
         {
-            mainFace=faces[i];
+            mainFace=faceRec;
             max=mainFace.height * mainFace.width;
             mainlabel=predicted_label;
         }
         else
         {
-            if (max<(faces[i].height*faces[i].width))
+            if (max<(faceRec.height*faceRec.width))
             {
-                mainFace=faces[i];
+                mainFace=faceRec;
                 max=mainFace.height * mainFace.width;
                 mainlabel=predicted_label;
             }
         }
-        cv::Point center( faces[i].x + faces[i].width*0.5, faces[i].y + faces[i].height*0.5 );
+        //cv::Point center( faces[i].x + faces[i].width*0.5, faces[i].y + faces[i].height*0.5 );
         if (predicted_label==-1)
         {
-            rectangle(display_im, faces[i], YELLOW);
+            rectangle(display_im, faceRec, YELLOW);
         }
         else
         {
-            rectangle(display_im, faces[i], BLUE);
+            rectangle(display_im, faceRec, BLUE);
         }
-        
+    
+        /*
         //std::cout<<faces[0].height<<faces[0].height;   ///////////////////////////////////////////////////
         faces[i].y = int(faces[i].y+faces[i].width*0.67);
         faces[i].height = int(faces[i].height*0.33);
@@ -184,14 +217,15 @@ const Scalar BLUE = Scalar(255,0,0);
         {
             cv::Point p1( faces[i].x + mouths[0].x , faces[i].y + mouths[0].y );
             cv::Point p2( faces[i].x + mouths[0].x + mouths[0].width, faces[i].y + mouths[0].y + mouths[0].height);
-            /*
-            int radius = cvRound( (mouths[j].width + mouths[i].height)*0.25 );
-            circle( display_im, center, radius, GREEN, 4, 8, 0 );
-            */
+         
+            //int radius = cvRound( (mouths[j].width + mouths[i].height)*0.25 );
+            //circle( display_im, center, radius, GREEN, 4, 8, 0 );
+         
             rectangle(display_im, p1,p2, GREEN);
         }
-
-    }
+         */
+    
+}
     if (mainlabel==-1)
     {
         rectangle(display_im, mainFace, RED);
@@ -199,7 +233,6 @@ const Scalar BLUE = Scalar(255,0,0);
     
     image =display_im;
    // image=RGface;
-
     //  [takephotoButton_ setHidden:true]; [goliveButton_ setHidden:false]; // Switch visibility of buttons
 }
 
