@@ -14,7 +14,7 @@
 #import "opencv2/highgui/ios.h"
 #endif
 
-@interface ViewController : UIViewController<CvVideoCameraDelegate>
+@interface ViewController : UIViewController
 
 
 @end

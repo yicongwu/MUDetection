@@ -7,39 +7,35 @@
 //
 
 #import "ViewController.h"
-
-// Include stdlib.h and std namespace so we can mix C++ code in here
+#import "SMKDetectionCamera.h"
+#import <GPUImage/GPUImage.h>
 #include <stdlib.h>
 using namespace cv;
 
-const Scalar YELLOW = Scalar(0,255,255);
-const Scalar RED = Scalar(0,0,255);
-const Scalar GREEN = Scalar(0,255,0);
-const Scalar BLUE = Scalar(255,0,0);
-
-@interface ViewController()
-{
-    UIImageView *liveView_; // Live output from the camera
-    CvVideoCamera *videoCamera;
+@interface ViewController () {
+    // Setup the view (this time using GPUImageView)
+    GPUImageView *cameraView_;
+    SMKDetectionCamera *detector_; // Detector that should be used
+    UIView *faceFeatureTrackingView_; // View for showing bounding box around the face
+    CGAffineTransform cameraOutputToPreviewFrameTransform_;
+    CGAffineTransform portraitRotationTransform_;
+    CGAffineTransform texelToPixelTransform_;
+    cv::Mat imageframe;
+    GPUImageRawDataOutput *rawDataOutput;
     cv::Mat RGface;
     Ptr<FaceRecognizer> model;
     vector<Mat> images;
     vector<int> labels;
+    int idnum;
 }
 
 @end
 
 @implementation ViewController
 
-
-//===============================================================================================
-// Setup view for excuting App
 - (void)viewDidLoad {
     [super viewDidLoad];
-    cv::CascadeClassifier face_cascade;
-    NSString* cascadePath1 = [[NSBundle mainBundle]
-                              pathForResource:@"haarcascade_frontalface_alt" ofType:@"xml"];
-    face_cascade.load([cascadePath1 UTF8String]);
+    // Do any additional setup after loading the view, typically from a nib.
     
     NSString* imagePath2 = [[NSBundle mainBundle]
                             pathForResource:@"RGuser" ofType:@"JPG"];
@@ -48,23 +44,13 @@ const Scalar BLUE = Scalar(255,0,0);
     cv::Mat RGimage,gray;
     UIImageToMat(imgFromUrl2,RGimage);
     cv::Rect faceRec;
-
+    
     cv::cvtColor(RGimage, gray, CV_BGR2GRAY); // Convert to grayscale
     cv::Mat im = gray;
     cv::Mat display_im=RGimage;
     
     vector<cv::Rect> faces;
     equalizeHist( im, im );
-    //std::cout<<im.cols<<" "<<im.rows<<std::endl;
-    /*face_cascade.detectMultiScale( im, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE,cv::Size(50, 100) );
-    std::cout << "Detected " << faces.size() << " faces!!!! " << std::endl;
-    for( int i = 0; i < faces.size(); i++ )
-    {
-        rectangle(display_im, faces[i], YELLOW);
-    }
-    
-    std::cout<<display_im.cols<<display_im.rows;
-    */
     NSDictionary *detectorOptions = @{ CIDetectorAccuracy : CIDetectorAccuracyLow };
     CIDetector *faceDetector = [CIDetector detectorOfType:CIDetectorTypeFace context:nil options:detectorOptions];
     
@@ -88,157 +74,161 @@ const Scalar BLUE = Scalar(255,0,0);
     labels.push_back(0);
     
     model = createLBPHFaceRecognizer();
-    model->set("threshold", 70.0);
+    model->set("threshold",70.0);
     model->train(images,labels);
-   
     
-    // 1. Setup the your OpenCV view, so it takes up the entire App screen......
-    int view_width = self.view.frame.size.width;
-    int view_height = (640*view_width)/480; // Work out the viw-height assuming 640x480 input
-    int view_offset = (self.view.frame.size.height - view_height)/2;
-    liveView_ = [[UIImageView alloc] initWithFrame:CGRectMake(0.0, view_offset, view_width, view_height)];
-    [self.view addSubview:liveView_]; // Important: add liveView_ as a subview
-    liveView_.hidden=false;
+    // Setup GPUImageView (not we are not using UIImageView here).........
+    cameraView_ = [[GPUImageView alloc] initWithFrame:CGRectMake(0.0, 0.0, self.view.frame.size.width, self.view.frame.size.height)];
+    
+    // Set the face detector to be used
+    detector_ = [[SMKDetectionCamera alloc] initWithSessionPreset:AVCaptureSessionPreset640x480 cameraPosition:AVCaptureDevicePositionFront];
+    [detector_ setOutputImageOrientation:UIInterfaceOrientationPortrait]; // Set to portrait
+    cameraView_.fillMode = kGPUImageFillModePreserveAspectRatio;
+    rawDataOutput=[[GPUImageRawDataOutput alloc] initWithImageSize:CGSizeMake(480, 640) resultsInBGRAFormat:YES];
+    [detector_ addTarget:cameraView_];
+    [detector_ addTarget:rawDataOutput];
+    // Important: add as a subview
+    [self.view addSubview:cameraView_];
+    // Setup the face box view
+    [self setupFaceTrackingViews];
+    [self calculateTransformations];
+    
+    // Set the block for running face detector
+    [detector_ beginDetecting:kFaceFeatures | kMachineAndFaceMetaData
+                    codeTypes:@[AVMetadataObjectTypeQRCode]
+           withDetectionBlock:^(SMKDetectionOptions detectionType, NSArray *detectedObjects, CGRect clapOrRectZero) {
+               // Check if the kFaceFeatures have been discovered
+               if (detectionType & kFaceFeatures) {
+                   [self updateFaceFeatureTrackingViewWithObjects:detectedObjects];
+               }
+           }];
     
     
-        
-        
-    videoCamera = [[CvVideoCamera alloc] initWithParentView:liveView_];
-    videoCamera.defaultAVCaptureDevicePosition = AVCaptureDevicePositionFront;
-    videoCamera.defaultAVCaptureSessionPreset = AVCaptureSessionPreset640x480;
-    videoCamera.defaultAVCaptureVideoOrientation = AVCaptureVideoOrientationPortrait;
-    videoCamera.defaultFPS = 30;
-    videoCamera.grayscaleMode = NO;
-    videoCamera.delegate = self;
-    videoCamera.rotateVideo = YES;
-    //videoCamera.recordVideo = YES;
-    [videoCamera start];
-   
+    __unsafe_unretained GPUImageRawDataOutput * weakOutput = rawDataOutput;
+    [rawDataOutput setNewFrameAvailableBlock:^{
+        [weakOutput lockFramebufferForReading];
+        GLubyte *outputBytes = [weakOutput rawBytesForImage];
+        cv::Mat abc(640,480,CV_8UC4,outputBytes);
+        imageframe=abc;
+        [weakOutput unlockFramebufferAfterReading];
+    }];
+    
+    // Finally start the camera
+    [detector_ startCameraCapture];
+    
 }
 
-//===============================================================================================
+// Set up the view for facetracking
+- (void)setupFaceTrackingViews
+{
+    faceFeatureTrackingView_ = [[UIView alloc] initWithFrame:CGRectZero];
+    faceFeatureTrackingView_.layer.borderColor = [[UIColor redColor] CGColor];
+    faceFeatureTrackingView_.layer.borderWidth = 3;
+    faceFeatureTrackingView_.backgroundColor = [UIColor clearColor];
+    faceFeatureTrackingView_.hidden = YES;
+    faceFeatureTrackingView_.userInteractionEnabled = NO;
+    [self.view addSubview:faceFeatureTrackingView_]; // Add as a sub-view
+}
 
-- (void)processImage:(cv::Mat &)image{
-    
-    // You can apply your OpenCV code HERE!!!!!
-    // If you want, you can ignore the rest of the code base here, and simply place
-    // your OpenCV code here to process images.
-    cv::CascadeClassifier face_cascade; // Cascade classifier for detecting the face
-    cv::CascadeClassifier mouth_cascade;
-    NSString* cascadePath1 = [[NSBundle mainBundle]
-                              pathForResource:@"haarcascade_frontalface_alt" ofType:@"xml"];
-    face_cascade.load([cascadePath1 UTF8String]);
-    
-    
-    NSString* cascadePath3 = [[NSBundle mainBundle]
-                              pathForResource:@"haarcascade_mcs_mouth" ofType:@"xml"];
-    mouth_cascade.load([cascadePath3 UTF8String]);
-
-
-    cv::Mat cvImage=image;
-    cv::Mat gray;
-    cv::cvtColor(cvImage, gray, CV_RGBA2GRAY); // Convert to grayscale
-    cv::Mat im = gray;
-    cv::Mat display_im=cvImage;
-    UIImage *img;
-    img=MatToUIImage(image);
-    
-    /*
-    vector<cv::Rect> faces;
-    Mat frame_gray=im;
-    equalizeHist( frame_gray, frame_gray );
-    //std::cout<<frame_gray.cols<<" "<<frame_gray.rows<<std::endl;
-    face_cascade.detectMultiScale( frame_gray, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE,cv::Size(50, 100) );
-    //std::cout << "Detected " << faces.size() << " faces!!!! " << std::endl;
-    */
-    
-    NSDictionary *detectorOptions = @{ CIDetectorAccuracy : CIDetectorAccuracyLow };
-    CIDetector *faceDetector = [CIDetector detectorOfType:CIDetectorTypeFace context:nil options:detectorOptions];
-    
-    // 5. Apply the image through the face detector
-    NSArray *features = [faceDetector featuresInImage:[CIImage imageWithCGImage: [img CGImage]]];
-    
-    cv::Rect mainFace;
-    cv::Rect faceRec;
-    int max=0;
-    int mainlabel=-1;
-    Mat faceROI0;
-    for(CIFaceFeature* faceFeature in features)
-    {
-        CGRect rec=faceFeature.bounds;
-        faceRec.x=rec.origin.x;
-        faceRec.y=640-rec.origin.y-rec.size.height;
-        //std::cout<<faceRec.x<<" "<<faceRec.y<<std::endl;
-        faceRec.width=rec.size.width;
-        faceRec.height=rec.size.height;
-        faceROI0 = im( faceRec );
-        //recognization
+// Update the face feature tracking view
+- (void)updateFaceFeatureTrackingViewWithObjects:(NSArray *)objects
+{
+    if (!objects.count) {
+        faceFeatureTrackingView_.hidden = YES;
+    }
+    else {
+        CIFaceFeature * feature = objects[0];
+        CGRect face = feature.bounds;
+        
+        //change CI rec to Cv Rect
+        cv::Rect faceRec;
+        faceRec.x=face.origin.y;
+        faceRec.y=face.origin.x;
+        faceRec.width=face.size.width;
+        faceRec.height=face.size.height;
+        //std::cout<<face.origin.x<<" "<<face.origin.y<<std::endl;
+        Mat gray;
+        cv::cvtColor(imageframe, gray, CV_BGRA2GRAY);
+        //extract face region
+        Mat faceROI=gray(faceRec);
+        //face recognition: predict process
         int predicted_label = -1;
-        double predicted_confidence = 1000.0;
+        double predicted_confidence;
         // Get the prediction and associated confidence from the model
-        model->predict(faceROI0, predicted_label, predicted_confidence);
-        std::cout<<predicted_label<<std::endl;
+        model->predict(faceROI, predicted_label, predicted_confidence);
+        //std::cout<<predicted_label<<std::endl;
         std::cout<<predicted_confidence<<std::endl;
-        if (max==0)
-        {
-            mainFace=faceRec;
-            max=mainFace.height * mainFace.width;
-            mainlabel=predicted_label;
+        
+        
+        
+        face = CGRectApplyAffineTransform(face, portraitRotationTransform_);
+        face = CGRectApplyAffineTransform(face, cameraOutputToPreviewFrameTransform_);
+        faceFeatureTrackingView_.frame = face;
+        faceFeatureTrackingView_.hidden = NO;
+        
+        
+        // Finally check if I smile (change the color)
+        if(predicted_label!=-1) {
+            faceFeatureTrackingView_.layer.borderColor = [[UIColor blueColor] CGColor];
         }
-        else
-        {
-            if (max<(faceRec.height*faceRec.width))
-            {
-                mainFace=faceRec;
-                max=mainFace.height * mainFace.width;
-                mainlabel=predicted_label;
-            }
+        else {
+            faceFeatureTrackingView_.layer.borderColor = [[UIColor redColor] CGColor];
         }
-        //cv::Point center( faces[i].x + faces[i].width*0.5, faces[i].y + faces[i].height*0.5 );
-        if (predicted_label==-1)
-        {
-            rectangle(display_im, faceRec, YELLOW);
-        }
-        else
-        {
-            rectangle(display_im, faceRec, BLUE);
-        }
-    
-        /*
-        //std::cout<<faces[0].height<<faces[0].height;   ///////////////////////////////////////////////////
-        faces[i].y = int(faces[i].y+faces[i].width*0.67);
-        faces[i].height = int(faces[i].height*0.33);
-        Mat faceROI = frame_gray( faces[i] );
-
-        vector<cv::Rect> mouths;
-        mouth_cascade.detectMultiScale( faceROI, mouths, 1.1, 2, 0 |CV_HAAR_SCALE_IMAGE, cv::Size(30, 50) );
-        //std::cout << "Detected " << mouths.size() << " mouths!!!! " << std::endl;
-        if  (mouths.size()>0)
-        {
-            cv::Point p1( faces[i].x + mouths[0].x , faces[i].y + mouths[0].y );
-            cv::Point p2( faces[i].x + mouths[0].x + mouths[0].width, faces[i].y + mouths[0].y + mouths[0].height);
-         
-            //int radius = cvRound( (mouths[j].width + mouths[i].height)*0.25 );
-            //circle( display_im, center, radius, GREEN, 4, 8, 0 );
-         
-            rectangle(display_im, p1,p2, GREEN);
-        }
-         */
-    
+    }
 }
-    if (mainlabel==-1)
-    {
-        rectangle(display_im, mainFace, RED);
+
+// Calculate transformations for displaying output on the screen
+- (void)calculateTransformations
+{
+    NSInteger outputHeight = [[detector_.captureSession.outputs[0] videoSettings][@"Height"] integerValue];
+    NSInteger outputWidth = [[detector_.captureSession.outputs[0] videoSettings][@"Width"] integerValue];
+    
+    if (UIInterfaceOrientationIsPortrait(detector_.outputImageOrientation)) {
+        // Portrait mode, swap width & height
+        NSInteger temp = outputWidth;
+        outputWidth = outputHeight;
+        outputHeight = temp;
     }
     
-    image =display_im;
-   // image=RGface;
-    //  [takephotoButton_ setHidden:true]; [goliveButton_ setHidden:false]; // Switch visibility of buttons
+    // Use self.view because self.cameraView is not resized at this point (if 3.5" device)
+    CGFloat viewHeight = self.view.frame.size.height;
+    CGFloat viewWidth = self.view.frame.size.width;
+    
+    // Calculate the scale and offset of the view vs the camera output
+    // This depends on the fillmode of the GPUImageView
+    CGFloat scale;
+    CGAffineTransform frameTransform;
+    switch (cameraView_.fillMode) {
+        case kGPUImageFillModePreserveAspectRatio:
+            scale = MIN(viewWidth / outputWidth, viewHeight / outputHeight);
+            frameTransform = CGAffineTransformMakeScale(scale, scale);
+            frameTransform = CGAffineTransformTranslate(frameTransform, -(outputWidth * scale - viewWidth)/2, -(outputHeight * scale - viewHeight)/2 );
+            break;
+        case kGPUImageFillModePreserveAspectRatioAndFill:
+            scale = MAX(viewWidth / outputWidth, viewHeight / outputHeight);
+            frameTransform = CGAffineTransformMakeScale(scale, scale);
+            frameTransform = CGAffineTransformTranslate(frameTransform, -(outputWidth * scale - viewWidth)/2, -(outputHeight * scale - viewHeight)/2 );
+            break;
+        case kGPUImageFillModeStretch:
+            frameTransform = CGAffineTransformMakeScale(viewWidth / outputWidth, viewHeight / outputHeight);
+            break;
+    }
+    cameraOutputToPreviewFrameTransform_ = frameTransform;
+    
+    // In portrait mode, need to swap x & y coordinates of the returned boxes
+    if (UIInterfaceOrientationIsPortrait(detector_.outputImageOrientation)) {
+        // Interchange x & y
+        portraitRotationTransform_ = CGAffineTransformMake(0, 1, 1, 0, 0, 0);
+    }
+    else {
+        portraitRotationTransform_ = CGAffineTransformIdentity;
+    }
+    
+    // AVMetaDataOutput works in texels (relative to the image size)
+    // We need to transform this to pixels through simple scaling
+    texelToPixelTransform_ = CGAffineTransformMakeScale(outputWidth, outputHeight);
 }
 
-
-//===============================================================================================
-// Standard memory warning component added by Xcode
 - (void)didReceiveMemoryWarning {
     [super didReceiveMemoryWarning];
     // Dispose of any resources that can be recreated.
