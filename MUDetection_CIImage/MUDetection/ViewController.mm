@@ -119,8 +119,7 @@ const Scalar BLUE = Scalar(255,0,0);
 //===============================================================================================
 
 - (void)processImage:(cv::Mat &)image{
-    if ((idnum%3)!=0)
-    {
+
     // You can apply your OpenCV code HERE!!!!!
     // If you want, you can ignore the rest of the code base here, and simply place
     // your OpenCV code here to process images.
@@ -234,8 +233,7 @@ const Scalar BLUE = Scalar(255,0,0);
     }
     
     image =display_im;
-}
-    idnum++;
+
    // image=RGface;
     //  [takephotoButton_ setHidden:true]; [goliveButton_ setHidden:false]; // Switch visibility of buttons
 }

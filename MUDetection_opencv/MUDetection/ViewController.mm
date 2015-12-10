@@ -72,7 +72,7 @@ const Scalar BLUE = Scalar(255,0,0);
     labels.push_back(0);
     
     model = createLBPHFaceRecognizer();
-    model->set("threshold", 100.0);
+    model->set("threshold", 70.0);
     model->train(images,labels);
    
     
