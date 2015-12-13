@@ -10,6 +10,7 @@
 #import "SMKDetectionCamera.h"
 #import <GPUImage/GPUImage.h>
 #include <stdlib.h>
+#import <mach/mach_time.h>
 using namespace cv;
 
 @interface ViewController () {
@@ -27,6 +28,7 @@ using namespace cv;
     vector<Mat> images;
     vector<int> labels;
     int idnum;
+    uint64_t prevTime;
 }
 
 @end
@@ -35,6 +37,7 @@ using namespace cv;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    prevTime=0;
     // Do any additional setup after loading the view, typically from a nib.
     
     NSString* imagePath2 = [[NSBundle mainBundle]
@@ -139,7 +142,15 @@ using namespace cv;
     else {
         CIFaceFeature * feature = objects[0];
         CGRect face = feature.bounds;
-        
+        uint64_t currTime = mach_absolute_time();
+        double timeInSeconds = machTimeToSecs(currTime - prevTime);
+        prevTime = currTime;
+        double fps;
+        if (timeInSeconds!=0) {
+            fps= 1.0 / timeInSeconds;
+        }
+        std::cout<<fps<<std::endl;
+
         //change CI rec to Cv Rect
         cv::Rect faceRec;
         faceRec.x=face.origin.y;
@@ -157,7 +168,7 @@ using namespace cv;
         // Get the prediction and associated confidence from the model
         model->predict(faceROI, predicted_label, predicted_confidence);
         //std::cout<<predicted_label<<std::endl;
-        std::cout<<predicted_confidence<<std::endl;
+        //std::cout<<predicted_confidence<<std::endl;
         
         
         
@@ -228,6 +239,15 @@ using namespace cv;
     // We need to transform this to pixels through simple scaling
     texelToPixelTransform_ = CGAffineTransformMakeScale(outputWidth, outputHeight);
 }
+
+static double machTimeToSecs(uint64_t time)
+{
+    mach_timebase_info_data_t timebase;
+    mach_timebase_info(&timebase);
+    return (double)time * (double)timebase.numer /
+    (double)timebase.denom / 1e9;
+}
+
 
 - (void)didReceiveMemoryWarning {
     [super didReceiveMemoryWarning];

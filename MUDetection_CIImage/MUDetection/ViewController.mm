@@ -7,7 +7,7 @@
 //
 
 #import "ViewController.h"
-
+#import <mach/mach_time.h>
 // Include stdlib.h and std namespace so we can mix C++ code in here
 #include <stdlib.h>
 using namespace cv;
@@ -26,6 +26,7 @@ const Scalar BLUE = Scalar(255,0,0);
     vector<Mat> images;
     vector<int> labels;
     int idnum;
+    uint64_t prevTime;
 }
 @end
 
@@ -36,6 +37,7 @@ const Scalar BLUE = Scalar(255,0,0);
 // Setup view for excuting App
 - (void)viewDidLoad {
     [super viewDidLoad];
+    prevTime=0;
     cv::CascadeClassifier face_cascade;
     NSString* cascadePath1 = [[NSBundle mainBundle]
                               pathForResource:@"haarcascade_frontalface_alt" ofType:@"xml"];
@@ -119,7 +121,14 @@ const Scalar BLUE = Scalar(255,0,0);
 //===============================================================================================
 
 - (void)processImage:(cv::Mat &)image{
-
+    uint64_t currTime = mach_absolute_time();
+    double timeInSeconds = machTimeToSecs(currTime - prevTime);
+    prevTime = currTime;
+    double fps;
+    if (timeInSeconds!=0) {
+        fps= 1.0 / timeInSeconds;
+    }
+    std::cout<<fps<<std::endl;
     // You can apply your OpenCV code HERE!!!!!
     // If you want, you can ignore the rest of the code base here, and simply place
     // your OpenCV code here to process images.
@@ -179,7 +188,7 @@ const Scalar BLUE = Scalar(255,0,0);
         // Get the prediction and associated confidence from the model
         model->predict(faceROI0, predicted_label, predicted_confidence);
        // std::cout<<predicted_label<<std::endl;
-        std::cout<<predicted_confidence<<std::endl;
+        //std::cout<<predicted_confidence<<std::endl;
         if (max==0)
         {
             mainFace=faceRec;
@@ -236,6 +245,14 @@ const Scalar BLUE = Scalar(255,0,0);
 
    // image=RGface;
     //  [takephotoButton_ setHidden:true]; [goliveButton_ setHidden:false]; // Switch visibility of buttons
+}
+
+static double machTimeToSecs(uint64_t time)
+{
+    mach_timebase_info_data_t timebase;
+    mach_timebase_info(&timebase);
+    return (double)time * (double)timebase.numer /
+    (double)timebase.denom / 1e9;
 }
 
 
